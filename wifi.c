@@ -35,9 +35,19 @@ static esp_err_t s_tcpip_started = ESP_FAIL;
 static const char *TAG = "wifi";
 
 static int s_retry_num = 0;
+static uint8_t s_wifi_status = 0; // dummy status
 
 static esp_event_handler_instance_t s_instance_any_id;
 static esp_event_handler_instance_t s_instance_got_ip;
+
+
+// dummy wi-fi status
+uint8_t wifi_status_get(void)
+{
+	//int64_t tsf_time = esp_wifi_get_tsf_time(WIFI_IF_STA);
+	//ESP_LOGI(TAG, "tsf_time=%lli", tsf_time);
+	return s_wifi_status;
+}
 
 
 static void event_handler(void* arg, esp_event_base_t event_base,
@@ -123,6 +133,8 @@ esp_err_t wifi_sta_start(const char* wifi_sta_ssid, const char* wifi_sta_pass, c
     ESP_ERROR_CHECK(esp_wifi_start() );
     ESP_LOGI(TAG, "wifi_init_sta finished.");
     
+    s_wifi_status = 0; 
+    
     /* Waiting until either the connection is established (WIFI_CONNECTED_BIT) or connection failed for the maximum
      * number of re-tries (WIFI_FAIL_BIT). The bits are set by event_handler() (see above) */
     EventBits_t bits = xEventGroupWaitBits(s_wifi_event_group,
@@ -136,13 +148,16 @@ esp_err_t wifi_sta_start(const char* wifi_sta_ssid, const char* wifi_sta_pass, c
     if (bits & WIFI_CONNECTED_BIT) {
         ESP_LOGI(TAG, "connected to ap SSID:%s password:%s", 
                 (char*)wifi_config.sta.ssid, (char*)wifi_config.sta.password);
+        s_wifi_status = 1;
     } else if (bits & WIFI_FAIL_BIT) {
         ESP_LOGI(TAG, "Failed to connect to SSID:%s, password:%s", 
                 (char*)wifi_config.sta.ssid, (char*)wifi_config.sta.password);
         ret = ESP_FAIL;
+        s_wifi_status = 0;
     } else {
         ESP_LOGE(TAG, "UNEXPECTED EVENT");
         ret = ESP_FAIL;
+        s_wifi_status = 0;
     }
     
     
@@ -159,7 +174,7 @@ void wifi_sta_stop(void)
     ESP_ERROR_CHECK(esp_event_handler_instance_unregister(IP_EVENT, IP_EVENT_STA_GOT_IP, s_instance_got_ip));
     ESP_ERROR_CHECK(esp_event_handler_instance_unregister(WIFI_EVENT, ESP_EVENT_ANY_ID, s_instance_any_id));
 
-
+	s_wifi_status = 0;
     esp_err_t err = esp_wifi_stop();
     if (err == ESP_ERR_WIFI_NOT_INIT) {
         return;
