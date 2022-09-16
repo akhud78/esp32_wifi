@@ -23,7 +23,8 @@
 
 /* FreeRTOS event group to signal when we are connected */
 static EventGroupHandle_t s_wifi_event_group;
-static esp_netif_t *s_netif;
+static esp_netif_t *s_sta_netif;
+static esp_netif_t *s_ap_netif;
 static esp_err_t s_tcpip_started = ESP_FAIL;
 
 /* The event group allows multiple bits for each event, but we only care about two events:
@@ -95,11 +96,11 @@ esp_err_t wifi_sta_start(const char* wifi_sta_ssid, const char* wifi_sta_pass, c
     
     ESP_ERROR_CHECK(esp_event_loop_create_default());
     
-    s_netif = esp_netif_create_default_wifi_sta();
+    s_sta_netif = esp_netif_create_default_wifi_sta();
     
     if (ip_info) { // set static IP address
-        esp_netif_dhcpc_stop(s_netif);
-        esp_netif_set_ip_info(s_netif, ip_info);
+        esp_netif_dhcpc_stop(s_sta_netif);
+        esp_netif_set_ip_info(s_sta_netif, ip_info);
     }
     
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
@@ -182,8 +183,8 @@ void wifi_sta_stop(void)
     ESP_ERROR_CHECK(err);
     ESP_ERROR_CHECK(esp_wifi_deinit());
 
-    ESP_ERROR_CHECK(esp_wifi_clear_default_wifi_driver_and_handlers(s_netif));
-    esp_netif_destroy(s_netif);
+    ESP_ERROR_CHECK(esp_wifi_clear_default_wifi_driver_and_handlers(s_sta_netif));
+    esp_netif_destroy(s_sta_netif);
 
     ESP_ERROR_CHECK(esp_event_loop_delete_default());
     
@@ -216,7 +217,8 @@ static void wifi_event_handler(void* arg, esp_event_base_t event_base,
     }
 }
 
-esp_err_t wifi_ap_start(const char* wifi_ap_ssid, const char* wifi_ap_pass)
+// https://github.com/espressif/esp-idf/issues/8698
+esp_err_t wifi_ap_start(const char* wifi_ap_ssid, const char* wifi_ap_pass, const esp_netif_ip_info_t *ip_info)
 {
     //Initialize Non-volatile storage
     esp_err_t ret = nvs_flash_init();
@@ -229,7 +231,12 @@ esp_err_t wifi_ap_start(const char* wifi_ap_ssid, const char* wifi_ap_pass)
     ESP_ERROR_CHECK(esp_netif_init());
     ESP_ERROR_CHECK(esp_event_loop_create_default());
     //esp_netif_create_default_wifi_ap();
-    s_netif = esp_netif_create_default_wifi_ap();
+    s_ap_netif = esp_netif_create_default_wifi_ap();
+    if (ip_info) { // set static IP address
+        ESP_ERROR_CHECK(esp_netif_dhcps_stop(s_ap_netif));
+        ESP_ERROR_CHECK(esp_netif_set_ip_info(s_ap_netif, ip_info));
+        ESP_ERROR_CHECK(esp_netif_dhcps_start(s_ap_netif));
+    }
 
     wifi_init_config_t cfg = WIFI_INIT_CONFIG_DEFAULT();
     ESP_ERROR_CHECK(esp_wifi_init(&cfg));
@@ -274,8 +281,8 @@ void wifi_ap_stop(void)
     }
     ESP_ERROR_CHECK(err);
     ESP_ERROR_CHECK(esp_wifi_deinit());
-    ESP_ERROR_CHECK(esp_wifi_clear_default_wifi_driver_and_handlers(s_netif));
-    esp_netif_destroy(s_netif);
+    ESP_ERROR_CHECK(esp_wifi_clear_default_wifi_driver_and_handlers(s_ap_netif));
+    esp_netif_destroy(s_ap_netif);
 
     ESP_ERROR_CHECK(esp_event_loop_delete_default());
 }

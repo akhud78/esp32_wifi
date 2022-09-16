@@ -36,7 +36,7 @@ extern "C" {
 esp_err_t wifi_sta_start(const char* wifi_sta_ssid, const char* wifi_sta_pass, const esp_netif_ip_info_t* ip_info);
 void wifi_sta_stop(void);
 
-esp_err_t wifi_ap_start(const char* wifi_ap_ssid, const char* wifi_ap_pass);
+esp_err_t wifi_ap_start(const char* wifi_ap_ssid, const char* wifi_ap_pass, const esp_netif_ip_info_t *ip_info);
 void wifi_ap_stop(void);
 
 uint8_t wifi_status_get(void); 
