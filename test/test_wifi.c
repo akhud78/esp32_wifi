@@ -21,7 +21,7 @@ TEST_CASE("station", "[wifi]")
 
 TEST_CASE("access point", "[wifi]")
 {    
-    TEST_ASSERT_EQUAL(ESP_OK, wifi_ap_start(WIFI_AP_SSID, WIFI_AP_PASS));
+    TEST_ASSERT_EQUAL(ESP_OK, wifi_ap_start(WIFI_AP_SSID, WIFI_AP_PASS, NULL));
     wifi_ap_stop();
     
 }
