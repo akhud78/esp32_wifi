@@ -101,8 +101,7 @@ esp_err_t wifi_sta_start(const char* wifi_sta_ssid, const char* wifi_sta_pass, c
     ESP_ERROR_CHECK(ret);
     
     s_wifi_event_group = xEventGroupCreate();
-    
-    
+     
     // Initialize the underlying TCP/IP stack.
     // This function should be called exactly once from application code, when the application starts up.
     if (s_tcpip_started == ESP_FAIL) {
@@ -145,10 +144,14 @@ esp_err_t wifi_sta_start(const char* wifi_sta_ssid, const char* wifi_sta_pass, c
     wifi_config.sta.pmf_cfg.capable = true; 
     wifi_config.sta.pmf_cfg.required = false;
     
-    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA) );
-    ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config) );
-    ESP_ERROR_CHECK(esp_wifi_start() );
-    
+    ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA));
+    ret = esp_wifi_set_config(WIFI_IF_STA, &wifi_config);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "Wi-Fi configuration failed: %s", esp_err_to_name(ret));
+        return ret;
+    }
+    ESP_ERROR_CHECK(esp_wifi_start());
+    ESP_LOGI(TAG, "%s esp_wifi_start OK", __func__); // DEBUG!!!
     
     if (time_retry == 0)
         time_retry = WIFI_STA_TIME_RETRY;
@@ -166,7 +169,6 @@ esp_err_t wifi_sta_start(const char* wifi_sta_ssid, const char* wifi_sta_pass, c
         ESP_LOGI(TAG, "%s The timer was not created", __func__);
         return ESP_FAIL; 
     }
-    
     
     /* Waiting until either the connection is established (WIFI_CONNECTED_BIT) or connection failed for the maximum
      * number of re-tries (WIFI_FAIL_BIT). The bits are set by event_handler() (see above) */
@@ -191,8 +193,6 @@ esp_err_t wifi_sta_start(const char* wifi_sta_ssid, const char* wifi_sta_pass, c
         ESP_LOGE(TAG, "UNEXPECTED EVENT");
         ret = ESP_FAIL;
     }
-    
-    
     return ret;
 }
 
