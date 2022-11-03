@@ -13,7 +13,7 @@ TEST_CASE("station", "[wifi]")
     p_ip_info = &ip_info;
 #endif
 
-    TEST_ASSERT_EQUAL(ESP_OK, wifi_sta_start(WIFI_STA_SSID, WIFI_STA_PASS, p_ip_info));
+    TEST_ASSERT_EQUAL(ESP_OK, wifi_sta_start(WIFI_STA_SSID, WIFI_STA_PASS, p_ip_info, 0, 0));
     wifi_sta_stop();
     
 }

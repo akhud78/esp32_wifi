@@ -1,25 +1,27 @@
-/* My WiFi station Example
-
-    https://github.com/espressif/esp-idf/blob/master/examples/wifi/getting_started/station/main/station_example_main.c
-*/
+// https://github.com/espressif/esp-idf/blob/master/examples/wifi/getting_started/station/main/station_example_main.c
 
 #include <string.h>
+#include <sys/time.h>
+
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 #include "freertos/event_groups.h"
 #include "esp_system.h"
 #include "esp_wifi.h"
-// #include "esp_netif.h"
 #include "esp_event.h"
 #include "esp_log.h"
 #include "nvs_flash.h"
 
 #include "lwip/err.h"
 #include "lwip/sys.h"
-
 #include "wifi.h"
 
-#define WIFI_STA_MAXIMUM_RETRY  CONFIG_WIFI_STA_MAXIMUM_RETRY
+#define WIFI_STA_MAXIMUM_RETRY      CONFIG_WIFI_STA_MAXIMUM_RETRY
+#define WIFI_STA_TIME_RETRY         CONFIG_WIFI_STA_TIME_RETRY
+
+static const char *TAG = "wifi";
+
+static TimerHandle_t s_reconnect_timer;
 
 /* FreeRTOS event group to signal when we are connected */
 static EventGroupHandle_t s_wifi_event_group;
@@ -33,8 +35,6 @@ static esp_err_t s_tcpip_started = ESP_FAIL;
 #define WIFI_CONNECTED_BIT BIT0
 #define WIFI_FAIL_BIT      BIT1
 
-static const char *TAG = "wifi";
-
 static uint8_t s_retry_num = 0;
 static uint8_t s_max_retry = WIFI_STA_MAXIMUM_RETRY;
 static uint8_t s_wifi_status = WIFI_STATUS_OFF; 
@@ -42,38 +42,42 @@ static uint8_t s_wifi_status = WIFI_STATUS_OFF;
 static esp_event_handler_instance_t s_instance_any_id;
 static esp_event_handler_instance_t s_instance_got_ip;
 
-
 // dummy wi-fi status
 uint8_t wifi_status_get(void)
 {
-	//int64_t tsf_time = esp_wifi_get_tsf_time(WIFI_IF_STA);
-	//ESP_LOGI(TAG, "tsf_time=%lli", tsf_time);
 	return s_wifi_status;
 }
 
-void wifi_max_retry_set(uint8_t max_retry)
-{
-    s_max_retry = max_retry;
+
+static void reconnect_timer_callback(TimerHandle_t timer)
+{    
+    if (s_wifi_status == WIFI_STATUS_FAIL) {  // reconnect
+        s_retry_num = 0;
+        esp_wifi_connect();
+    }
 }
-
-
 
 static void event_handler(void* arg, esp_event_base_t event_base,
                                 int32_t event_id, void* event_data)
 {
     if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START) {
+        s_wifi_status = WIFI_STATUS_OFF;
         esp_wifi_connect();
     } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED) {
+        s_wifi_status = WIFI_STATUS_OFF;
         if (s_retry_num < s_max_retry) {
             esp_wifi_connect();
             s_retry_num++;
             ESP_LOGI(TAG, "retry %d to connect to the AP", s_retry_num);
         } else {
+            s_wifi_status = WIFI_STATUS_FAIL;
             s_retry_num = 0;
             xEventGroupSetBits(s_wifi_event_group, WIFI_FAIL_BIT);
             ESP_LOGI(TAG,"connect to the AP fail");
+            xTimerStart(s_reconnect_timer, 0);
         }
     } else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
+        s_wifi_status = WIFI_STATUS_CONNECTED;
         ip_event_got_ip_t* event = (ip_event_got_ip_t*) event_data;
         ESP_LOGI(TAG, "got ip:" IPSTR, IP2STR(&event->ip_info.ip));
         s_retry_num = 0;
@@ -81,8 +85,12 @@ static void event_handler(void* arg, esp_event_base_t event_base,
     }
 }
 
-
-esp_err_t wifi_sta_start(const char* wifi_sta_ssid, const char* wifi_sta_pass, const esp_netif_ip_info_t *ip_info)
+/*
+    max_retry - Максимальное количество попыток соединения с точкой доступа
+    time_retry - Время ожидания перед повтором  попыток соединения с точкой доступа
+*/
+esp_err_t wifi_sta_start(const char* wifi_sta_ssid, const char* wifi_sta_pass, const esp_netif_ip_info_t *ip_info, 
+                        uint8_t max_retry, uint16_t time_retry)
 {
     //Initialize Non-volatile storage
     esp_err_t ret = nvs_flash_init();
@@ -140,9 +148,25 @@ esp_err_t wifi_sta_start(const char* wifi_sta_ssid, const char* wifi_sta_pass, c
     ESP_ERROR_CHECK(esp_wifi_set_mode(WIFI_MODE_STA) );
     ESP_ERROR_CHECK(esp_wifi_set_config(WIFI_IF_STA, &wifi_config) );
     ESP_ERROR_CHECK(esp_wifi_start() );
-    ESP_LOGI(TAG, "wifi_init_sta finished.");
     
-    s_wifi_status = WIFI_STATUS_OFF; 
+    
+    if (time_retry == 0)
+        time_retry = WIFI_STA_TIME_RETRY;
+        
+    if (max_retry) 
+        s_max_retry = max_retry;
+    
+    
+    s_reconnect_timer = xTimerCreate ( "reconnect_timer", time_retry * 1000 / portTICK_PERIOD_MS,
+                                pdFALSE,         // The timers will auto-reload themselves when they expire.
+                                (void *)0,      // Assign each timer a unique id equal to its array index.
+                                reconnect_timer_callback  // Each timer calls the same callback when it expires.
+                            );
+    if(s_reconnect_timer == NULL) {
+        ESP_LOGI(TAG, "%s The timer was not created", __func__);
+        return ESP_FAIL; 
+    }
+    
     
     /* Waiting until either the connection is established (WIFI_CONNECTED_BIT) or connection failed for the maximum
      * number of re-tries (WIFI_FAIL_BIT). The bits are set by event_handler() (see above) */
@@ -157,16 +181,15 @@ esp_err_t wifi_sta_start(const char* wifi_sta_ssid, const char* wifi_sta_pass, c
     if (bits & WIFI_CONNECTED_BIT) {
         ESP_LOGI(TAG, "connected to ap SSID:%s password:%s", 
                 (char*)wifi_config.sta.ssid, (char*)wifi_config.sta.password);
-        s_wifi_status = WIFI_STATUS_CONNECTED;
+        
     } else if (bits & WIFI_FAIL_BIT) {
         ESP_LOGI(TAG, "Failed to connect to SSID:%s, password:%s", 
                 (char*)wifi_config.sta.ssid, (char*)wifi_config.sta.password);
         ret = ESP_FAIL;
-        s_wifi_status = WIFI_STATUS_FAIL;
+        
     } else {
         ESP_LOGE(TAG, "UNEXPECTED EVENT");
         ret = ESP_FAIL;
-        s_wifi_status = WIFI_STATUS_FAIL;
     }
     
     
@@ -178,8 +201,9 @@ esp_err_t wifi_sta_start(const char* wifi_sta_ssid, const char* wifi_sta_pass, c
 
 void wifi_sta_stop(void)
 {
+    xTimerStop(s_reconnect_timer, 0);
+    
     /* The event will not be processed after unregister */
-        
     ESP_ERROR_CHECK(esp_event_handler_instance_unregister(IP_EVENT, IP_EVENT_STA_GOT_IP, s_instance_got_ip));
     ESP_ERROR_CHECK(esp_event_handler_instance_unregister(WIFI_EVENT, ESP_EVENT_ANY_ID, s_instance_any_id));
 
@@ -224,6 +248,7 @@ static void wifi_event_handler(void* arg, esp_event_base_t event_base,
         ESP_LOGI(TAG, "station "MACSTR" leave, AID=%d", MAC2STR(event->mac), event->aid);
     }
 }
+
 
 // https://github.com/espressif/esp-idf/issues/8698
 esp_err_t wifi_ap_start(const char* wifi_ap_ssid, const char* wifi_ap_pass, const esp_netif_ip_info_t *ip_info)
@@ -280,11 +305,6 @@ esp_err_t wifi_ap_start(const char* wifi_ap_ssid, const char* wifi_ap_pass, cons
     return ret;
 }
 
-void wifi_reconnect(void)
-{
-    s_retry_num = 0;
-    esp_wifi_connect();
-}
 
 void wifi_ap_stop(void)
 {
