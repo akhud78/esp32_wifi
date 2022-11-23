@@ -21,10 +21,6 @@
 #define WIFI_STATIC_MASK    CONFIG_WIFI_STATIC_MASK
 #endif
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 
 #include "esp_err.h"
 #include "esp_netif.h"
