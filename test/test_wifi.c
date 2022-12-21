@@ -3,7 +3,6 @@
 #include "ping.h"
 #include "wifi.h"
 
-
 TEST_CASE("station", "[wifi]")
 {    
 
@@ -38,4 +37,16 @@ TEST_CASE("ping", "[wifi]")
         
     wifi_sta_stop();
     
+}
+
+
+TEST_CASE("sntp", "[wifi]")
+{
+    TEST_ESP_OK(wifi_sta_start(WIFI_STA_SSID, WIFI_STA_PASS, NULL, 0, 0));
+    
+    bool res = wifi_sta_sntp_init("pool.ntp.org"); // ntp1.stratum2.ru
+    wifi_sta_stop(); 
+        
+    TEST_ASSERT_TRUE(res);
+
 }

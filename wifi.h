@@ -32,6 +32,7 @@ extern "C" {
 esp_err_t wifi_sta_start(const char* wifi_sta_ssid, const char* wifi_sta_pass, const esp_netif_ip_info_t* ip_info, 
                         uint8_t max_retry, uint16_t time_retry);
 void wifi_sta_stop(void);
+bool wifi_sta_sntp_init(const char *server);
 
 esp_err_t wifi_ap_start(const char* wifi_ap_ssid, const char* wifi_ap_pass, const esp_netif_ip_info_t *ip_info);
 void wifi_ap_stop(void);
@@ -42,6 +43,7 @@ void wifi_ap_stop(void);
 #define WIFI_STATUS_FAIL      (2)        
 
 uint8_t wifi_status_get(void);
+
 
 
 #ifdef __cplusplus

@@ -1,5 +1,4 @@
 // https://github.com/espressif/esp-idf/blob/master/examples/wifi/getting_started/station/main/station_example_main.c
-
 #include <string.h>
 #include <sys/time.h>
 
@@ -11,10 +10,12 @@
 #include "esp_event.h"
 #include "esp_log.h"
 #include "nvs_flash.h"
+#include "esp_sntp.h"
 
 #include "lwip/err.h"
 #include "lwip/sys.h"
 #include "wifi.h"
+
 
 #define WIFI_STA_MAXIMUM_RETRY      CONFIG_WIFI_STA_MAXIMUM_RETRY
 #define WIFI_STA_TIME_RETRY         CONFIG_WIFI_STA_TIME_RETRY
@@ -203,6 +204,10 @@ void wifi_sta_stop(void)
 {
     xTimerStop(s_reconnect_timer, 0);
     
+    if (sntp_enabled()) {
+        sntp_stop();    
+    }
+    
     /* The event will not be processed after unregister */
     ESP_ERROR_CHECK(esp_event_handler_instance_unregister(IP_EVENT, IP_EVENT_STA_GOT_IP, s_instance_got_ip));
     ESP_ERROR_CHECK(esp_event_handler_instance_unregister(WIFI_EVENT, ESP_EVENT_ANY_ID, s_instance_any_id));
@@ -223,6 +228,55 @@ void wifi_sta_stop(void)
     vEventGroupDelete(s_wifi_event_group);
 
 }
+// --- SNTP ---
+// https://docs.espressif.com/projects/esp-idf/en/release-v4.4/esp32s3/api-reference/system/system_time.html#sntp-time-synchronization
+// https://github.com/espressif/esp-idf/blob/release/v4.4/examples/protocols/sntp/main/sntp_example_main.c
+// https://github.com/espressif/esp-lwip/blob/master/src/include/lwip/apps/sntp.h
+bool wifi_sta_sntp_init(const char *server)
+{
+    sntp_setoperatingmode(SNTP_OPMODE_POLL);
+    sntp_setservername(0, server); // "pool.ntp.org"
+    
+    /*
+	sntp_setservername(1, "europe.pool.ntp.org"); 
+	sntp_setservername(2, "uk.pool.ntp.org ");
+	sntp_setservername(3, "us.pool.ntp.org");
+	sntp_setservername(4, "time1.google.com");
+    */
+        
+    if (sntp_enabled()) {
+        ESP_LOGI(TAG, "SNTP already initialized.");
+        
+    } else {    
+        sntp_init();
+
+        // wait for time to be set
+        int retry = 0;
+        const int retry_count = 5;
+        while (sntp_get_sync_status() == SNTP_SYNC_STATUS_RESET && ++retry < retry_count) {
+            ESP_LOGI(TAG, "Waiting for system time to be set... (%d/%d)", retry, retry_count);
+            vTaskDelay(2000 / portTICK_PERIOD_MS);
+        }
+    }
+
+    time_t now = 0;
+    struct tm timeinfo = {0};
+    
+    time(&now);
+    localtime_r(&now, &timeinfo);
+    
+    // Is time set? If not, tm_year will be (1970 - 1900).
+    if (timeinfo.tm_year < (2016 - 1900))
+        return false;
+        
+    char s[64];
+    strftime(s, sizeof(s), "%Y-%m-%d %X", &timeinfo); // "%c"        
+    ESP_LOGI(TAG, "%s", s);
+    
+    return true;        
+}
+
+
 
 // --- SoftAP ---
 
@@ -319,3 +373,7 @@ void wifi_ap_stop(void)
 
     ESP_ERROR_CHECK(esp_event_loop_delete_default());
 }
+
+
+
+
