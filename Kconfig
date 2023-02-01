@@ -15,9 +15,13 @@ menu "Wi-Fi Station Configuration"
 
 	config WIFI_STA_MAXIMUM_RETRY
 	    int "Maximum retry"
-	    default 5
+	    default 2
 	    help
 		Set the Maximum retry to avoid station reconnecting to the AP unlimited when the AP is really inexistent.
+
+	config WIFI_STA_TIME_RETRY
+	    int "Connection Retry Period (s)"
+	    default 60
 
 	config WIFI_STATIC
 	    bool "Use static IP"
