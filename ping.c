@@ -91,8 +91,7 @@ target_host:target host url. if null,target is own gateway.
 */
 esp_err_t ping_initialize(uint32_t interval_ms, uint32_t task_prio, char *target_host)
 {
-    printf("esp_get_free_heap_size: %d\n", esp_get_free_heap_size());
-    
+    printf("esp_get_free_heap_size: %"PRIu32"\n", esp_get_free_heap_size());
 	esp_ping_config_t ping_config = ESP_PING_DEFAULT_CONFIG();
 
 	if (strlen(target_host) > 0) {
