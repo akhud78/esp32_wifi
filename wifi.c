@@ -17,6 +17,14 @@
 #include "lwip/sys.h"
 #include "wifi.h"
 
+// https://github.com/nopnop2002/esp-idf-ftpServer/blob/main/main/main.c
+#if (ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0))
+#define sntp_setoperatingmode   esp_sntp_setoperatingmode
+#define sntp_setservername      esp_sntp_setservername
+#define sntp_init               esp_sntp_init
+#define sntp_enabled            esp_sntp_enabled
+#define sntp_stop               esp_sntp_stop
+#endif
 
 #define WIFI_STA_MAXIMUM_RETRY      CONFIG_WIFI_STA_MAXIMUM_RETRY
 #define WIFI_STA_TIME_RETRY         CONFIG_WIFI_STA_TIME_RETRY
@@ -47,7 +55,7 @@ static esp_event_handler_instance_t s_instance_got_ip;
 // dummy wi-fi status
 uint8_t wifi_status_get(void)
 {
-	return s_wifi_status;
+    return s_wifi_status;
 }
 
 
@@ -213,7 +221,7 @@ void wifi_sta_stop(void)
     ESP_ERROR_CHECK(esp_event_handler_instance_unregister(IP_EVENT, IP_EVENT_STA_GOT_IP, s_instance_got_ip));
     ESP_ERROR_CHECK(esp_event_handler_instance_unregister(WIFI_EVENT, ESP_EVENT_ANY_ID, s_instance_any_id));
 
-	s_wifi_status = WIFI_STATUS_OFF;
+    s_wifi_status = WIFI_STATUS_OFF;
     esp_err_t err = esp_wifi_stop();
     if (err == ESP_ERR_WIFI_NOT_INIT) {
         return;
@@ -239,10 +247,10 @@ bool wifi_sta_sntp_init(const char *server)
     sntp_setservername(0, server); // "pool.ntp.org"
     
     /*
-	sntp_setservername(1, "europe.pool.ntp.org"); 
-	sntp_setservername(2, "uk.pool.ntp.org ");
-	sntp_setservername(3, "us.pool.ntp.org");
-	sntp_setservername(4, "time1.google.com");
+    sntp_setservername(1, "europe.pool.ntp.org"); 
+    sntp_setservername(2, "uk.pool.ntp.org ");
+    sntp_setservername(3, "us.pool.ntp.org");
+    sntp_setservername(4, "time1.google.com");
     */
         
     if (sntp_enabled()) {
