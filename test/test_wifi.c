@@ -6,6 +6,8 @@
 #include "ping.h"
 #include "wifi.h"
 #include "esp_heap_caps.h"
+#include "esp_wifi.h"
+#include <netdb.h>  
 
 static const char TAG[] = "test_wifi";
 
