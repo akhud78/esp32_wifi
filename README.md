@@ -23,7 +23,12 @@ $ git submodule add https://github.com/akhud78/esp32_wifi wifi
 (Top) -> Component config -> WiFi Station Configuration
 (myssid) WiFi SSID
 (mypassword) WiFi Password
-(5) Maximum retry
+(2) Maximum retry
+(60) Connection Retry Period (s)
+[*] Use static IP
+(192.168.4.10) IP address
+(192.168.4.1) Gateway
+(255.255.255.0) Mask
 ```
 - WiFi Access Point Configuration
 ```
